@@ -10,6 +10,16 @@ $ ./run.sh
 $ ./stop.sh
 ```
 
+## Run siege tests
+
+```text
+sudo apt-get install siege
+```
+
+```bash
+$ ./test.sh
+```
+
 ## Feel data
 
 ```text

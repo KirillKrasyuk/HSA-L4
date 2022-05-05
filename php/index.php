@@ -39,6 +39,7 @@ class Connection {
 
 class Server {
     const DATA_KEY = 'data';
+    const ITEM_KEY = 'item_';
     const DATA_TTL = 600;
     const MIN_TIME_PERCENT = 0.05; // 5%
 
@@ -68,6 +69,14 @@ class Server {
         return $query->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public function getItem($id): array
+    {
+        $query = $this->connection->prepare("SELECT * FROM data WHERE id = $id;");
+        $query->execute();
+
+        return $query->fetch(PDO::FETCH_ASSOC);
+    }
+
     public function getCachedData(): string
     {
         if (!$this->cache->exists(self::DATA_KEY)) {
@@ -81,6 +90,19 @@ class Server {
         return $this->cache->get(self::DATA_KEY);
     }
 
+    public function getCachedItem($id): string
+    {
+        if (!$this->cache->exists(self::ITEM_KEY . $id)) {
+            $this->cache->set(self::ITEM_KEY . $id, json_encode($this->getItem($id)), self::DATA_TTL);
+        }
+
+        if ($this->checkCacheTime(self::ITEM_KEY . $id)) {
+            $this->cache->setEx(self::ITEM_KEY . $id, self::DATA_TTL, json_encode($this->getItem($id)));
+        }
+
+        return $this->cache->get(self::ITEM_KEY . $id);
+    }
+
     public function checkCacheTime(string $key): bool
     {
         $time = $this->cache->ttl($key);
@@ -91,6 +113,13 @@ class Server {
         }
 
         return rand(0, $time) === 0;
+    }
+
+    public function getItemData($id)
+    {
+        header('Content-type: application/json');
+
+        echo $this->getCachedItem($id);
     }
 
     public function getResponse()
@@ -165,6 +194,7 @@ $server = new Server(
 );
 
 $action = $_GET['action'] ?? 'default';
+$id = $_GET['id'] ?? null;
 
 switch ($action) {
     case 'init':
@@ -172,6 +202,9 @@ switch ($action) {
         break;
     case 'clear':
         $server->clearData();
+        break;
+    case 'item':
+        $server->getItemData($id);
         break;
     default:
         $server->getResponse();

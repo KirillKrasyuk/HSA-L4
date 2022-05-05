@@ -1,0 +1,6 @@
+http://localhost:8080/index.php
+http://localhost:8080/index.php?action=item&id=1
+http://localhost:8080/index.php?action=item&id=2
+http://localhost:8080/index.php?action=item&id=3
+http://localhost:8080/index.php?action=item&id=4
+http://localhost:8080/index.php?action=item&id=5
