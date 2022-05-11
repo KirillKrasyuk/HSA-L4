@@ -1,0 +1,6 @@
+http://localhost:8080/index.php?cache=1
+http://localhost:8080/index.php?action=item&id=1&cache=1
+http://localhost:8080/index.php?action=item&id=2&cache=1
+http://localhost:8080/index.php?action=item&id=3&cache=1
+http://localhost:8080/index.php?action=item&id=4&cache=1
+http://localhost:8080/index.php?action=item&id=5&cache=1

@@ -43,6 +43,8 @@ class Server {
     const DATA_TTL = 600;
     const MIN_TIME_PERCENT = 0.05; // 5%
 
+    private array $uuids = [];
+
     public function __construct(
         private PDO $connection,
         private Redis $cache
@@ -54,11 +56,16 @@ class Server {
         $this->dropTable();
         $this->createTable();
         $this->createRecords();
+        $this->clearCache();
+
+        echo 'Init done' . PHP_EOL;
     }
 
-    public function clearData()
+    public function clearCache()
     {
-        $this->cache->del(self::DATA_KEY);
+        $this->cache->flushAll();
+
+        echo 'Clear cache done' . PHP_EOL;
     }
 
     public function getData(): array
@@ -77,8 +84,12 @@ class Server {
         return $query->fetch(PDO::FETCH_ASSOC);
     }
 
-    public function getCachedData(): string
+    public function getCachedData(bool $useCache = false): string
     {
+        if ($useCache === false) {
+            return json_encode($this->getData());
+        }
+
         if (!$this->cache->exists(self::DATA_KEY)) {
             $this->cache->set(self::DATA_KEY, json_encode($this->getData()), self::DATA_TTL);
         }
@@ -90,8 +101,12 @@ class Server {
         return $this->cache->get(self::DATA_KEY);
     }
 
-    public function getCachedItem($id): string
+    public function getCachedItem($id, bool $useCache = false): string
     {
+        if ($useCache === false) {
+            return json_encode($this->getItem($id));
+        }
+
         if (!$this->cache->exists(self::ITEM_KEY . $id)) {
             $this->cache->set(self::ITEM_KEY . $id, json_encode($this->getItem($id)), self::DATA_TTL);
         }
@@ -115,36 +130,53 @@ class Server {
         return rand(0, $time) === 0;
     }
 
-    public function getItemData($id)
+    public function getItemData($id, bool $useCache = false)
     {
-        header('Content-type: application/json');
+        try {
+            header('Content-type: application/json');
 
-        echo $this->getCachedItem($id);
+            echo $this->getCachedItem($id, $useCache);
+        } catch (\Exception $exception) {
+            header('Content-type: application/json');
+            header('HTTP/1.1 500 Internal Server Error');
+        }
     }
 
-    public function getResponse()
+    public function getResponse(bool $useCache = false)
     {
-        header('Content-type: application/json');
+        try {
+            header('Content-type: application/json');
 
-        echo $this->getCachedData();
+            echo $this->getCachedData($useCache);
+        } catch (\Exception $exception) {
+            header('Content-type: application/json');
+            header('HTTP/1.1 500 Internal Server Error');
+        }
     }
 
     private function createRecords()
     {
-        for ($i = 0; $i < 1000; $i++) {
-            $this->insertRecord();
+        for ($i = 1; $i <= 1000000; $i++) {
+            $this->uuids[] = $this->genUuid();
+
+            if ($i % 1000 === 0) {
+                $this->insertRecords();
+
+                $this->uuids = [];
+            }
         }
     }
 
-    private function insertRecord()
+    private function insertRecords()
     {
         try {
-            $uuid = $this->genUuid();
+            $sql = sprintf(
+                "INSERT INTO data (uuid) VALUES ('%s');",
+                implode("'), ('", $this->uuids)
+            );
 
-            $query = $this->connection
-                ->prepare("INSERT INTO data (uuid) VALUES (:uuid);");
+            $query = $this->connection->prepare($sql);
 
-            $query->bindParam('uuid', $uuid);
             $query->execute();
         } catch (\Exception $exception) {
             echo "SQL error: " . $exception->getMessage() . PHP_EOL;
@@ -195,17 +227,18 @@ $server = new Server(
 
 $action = $_GET['action'] ?? 'default';
 $id = $_GET['id'] ?? null;
+$useCache = isset($_GET['cache']) ?? false;
 
 switch ($action) {
     case 'init':
         $server->initData();
         break;
     case 'clear':
-        $server->clearData();
+        $server->clearCache();
         break;
     case 'item':
-        $server->getItemData($id);
+        $server->getItemData($id, $useCache);
         break;
     default:
-        $server->getResponse();
+        $server->getResponse($useCache);
 }
